@@ -15,13 +15,11 @@ __license__ = "MIT"
 
 import dataclasses
 import numpy
-import matplotlib.pyplot as plt
-import matplotlib.patches as mpp
 import typing
 import scipy.constants as sp_const
 import magnetia.types as mg_types
 
-CHARGE_VISUAL_RADIUS: int = 0.4
+CHARGE_VISUAL_RADIUS: float = 0.2
 
 
 @dataclasses.dataclass
@@ -115,26 +113,67 @@ def get_line_start_points(
     return _line_start_points
 
 
-def electric_field_lines(
+def angle_between_vectors(vector_1: mg_types.Float64_3DVector, vector_2: mg_types.Float64_3DVector) -> numpy.float64:
+    return numpy.arccos(numpy.inner(vector_1, vector_2) / (numpy.linalg.norm(vector_1) * numpy.linalg.norm(vector_2)))
+
+def check_if_crosses_charge(
     electric_charges: typing.List[PointCharge],
-    n_lines_per_charge: int = 20,
-    length: int = 20,
-) -> None:
-    """Plot field lines for a given set of electric charges
+    old_coordinate: mg_types.Float64_3DVector,
+    new_coordinate: mg_types.Float64_3DVector,
+    tolerance: numpy.float64 = 5e-2,
+) -> bool:
+    for electric_charge in electric_charges:
+        _new_line_vec: mg_types.Float64_3DVector = new_coordinate - old_coordinate
+        _to_charg_vec: mg_types.Float64_3DVector = electric_charge.position - old_coordinate
 
-    Parameters
-    ----------
-    electric_charges : typing.List[PointCharge]
-        list of charges defining the electric field
-    n_lines_per_charge : int, optional
-        number of lines to plot per charge, by default 20
-    length : int, optional
-        length of each electric field line, by default 20
-    """
+        _angle: numpy.float64 = angle_between_vectors(_new_line_vec, _to_charg_vec)
 
-    # initialise a set of axes on which to plot the charges and field lines
-    _, axes = plt.subplots()
-    axes.set_aspect(1)
+        if numpy.any(numpy.isnan(_angle)) or _angle <= tolerance:
+            return True
+    return False
+
+
+def create_field_line(
+    electric_charges: typing.List[PointCharge],
+    line_start: mg_types.Float64_3DVector,
+    length: int = 100,
+) -> mg_types.Float64_3DVectorArray:
+    _field_line: typing.List[mg_types.Float64_3DVector] = numpy.array([line_start])
+
+    for i in range(length):
+
+        # Obtain the force at the given point and then find the unit vector
+        _force_vector: mg_types.Float64_3DVector = coulomb_force(
+            electric_charges, _field_line[-1]
+        )
+        _unit_vec: mg_types.Float64_3DVector = _force_vector / numpy.linalg.norm(
+            _force_vector
+        )
+
+        _new_coord: mg_types.Float64_3DVector = (_field_line[-1] + _unit_vec)[
+            numpy.newaxis, ...
+        ]
+
+        if check_if_crosses_charge(
+            electric_charges, _field_line[-1], _new_coord
+        ) and i > 1:
+            return _field_line
+
+        # Append the next point in the field line taken to be the current
+        # point plus an interval of the unit vector
+        _field_line = numpy.append(
+            _field_line,
+            _new_coord,
+            axis=0,
+        )
+
+    return _field_line
+
+
+def field_lines_from_charges(
+    electric_charges: PointCharge, n_lines_per_charge: int = 20, length: int = 20
+) -> typing.List[mg_types.Float64_3DVectorArray]:
+    _field_lines: typing.List[mg_types.Float64_3DVectorArray] = []
 
     for electric_charge in electric_charges:
         # Only plot field lines from positive charges
@@ -144,54 +183,9 @@ def electric_field_lines(
         # Create a field line from each starting point, these being spaced
         # evenly across the angle 2pi
         for line_start in get_line_start_points(electric_charge, n_lines_per_charge):
-            _field_line: typing.List[mg_types.Float64_3DVector] = numpy.array(
-                [line_start]
-            )
-            for _ in range(length):
+            _field_lines.append(create_field_line(electric_charges, line_start, length))
 
-                # Obtain the force at the given point and then find the unit vector
-                _force_vector: mg_types.Float64_3DVector = coulomb_force(
-                    electric_charges, _field_line[-1]
-                )
-                _unit_vec: mg_types.Float64_3DVector = (
-                    _force_vector / numpy.linalg.norm(_force_vector)
-                )
-
-                # Append the next point in the field line taken to be the current
-                # point plus an interval of the unit vector
-                _field_line = numpy.append(
-                    _field_line,
-                    (_field_line[-1] + _unit_vec)[numpy.newaxis, ...],
-                    axis=0,
-                )
-
-            axes.plot(_field_line[:, 0], _field_line[:, 1], color="k")
-
-    axes.set_xlabel("x")
-    axes.set_ylabel("y")
-
-    # Plot the charges displaying also their magnitude
-    for charge in electric_charges:
-        axes.add_patch(
-            mpp.Circle(
-                (charge.position[0], charge.position[1]),
-                radius=CHARGE_VISUAL_RADIUS,
-                color="r",
-            )
-        )
-
-        axes.text(
-            charge.position[0],
-            charge.position[1],
-            charge.charge,
-            color="k",
-            verticalalignment="bottom",
-            horizontalalignment="left",
-        )
-
-    axes.relim()
-    axes.autoscale_view()
-    plt.show()
+    return _field_lines
 
 
 if __name__ in "__main__":
