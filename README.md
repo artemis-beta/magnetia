@@ -21,7 +21,7 @@ poetry install
 The electric fields simulation is a web based application created using [Bokeh](https://bokeh.org/). The simulation plots electric charges and displays field
 lines to illustrate the forces between them:
 
-![example_field_app](./media/efield_demo.png)
+![example_field_app](./media/efield_demo.jpg)
 
 Launch the application by running:
 
