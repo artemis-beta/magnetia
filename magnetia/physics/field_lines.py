@@ -137,10 +137,12 @@ def create_field_line(
     electric_charges: typing.List[PointCharge],
     line_start: mg_types.Float64_3DVector,
     length: int = 100,
+    points_per_unit_vector: int=1,
+    approach_tolerance: float=1E-1
 ) -> mg_types.Float64_3DVectorArray:
     _field_line: typing.List[mg_types.Float64_3DVector] = numpy.array([line_start])
 
-    for i in range(length):
+    for i in range(length * points_per_unit_vector):
 
         # Obtain the force at the given point and then find the unit vector
         _force_vector: mg_types.Float64_3DVector = coulomb_force(
@@ -150,12 +152,12 @@ def create_field_line(
             _force_vector
         )
 
-        _new_coord: mg_types.Float64_3DVector = (_field_line[-1] + _unit_vec)[
+        _new_coord: mg_types.Float64_3DVector = (_field_line[-1] + (1 / points_per_unit_vector) * _unit_vec)[
             numpy.newaxis, ...
         ]
 
         if check_if_crosses_charge(
-            electric_charges, _field_line[-1], _new_coord
+            electric_charges, _field_line[-1], _new_coord, approach_tolerance
         ) and i > 1:
             return _field_line
 
@@ -171,7 +173,7 @@ def create_field_line(
 
 
 def field_lines_from_charges(
-    electric_charges: PointCharge, n_lines_per_charge: int = 20, length: int = 20
+    electric_charges: PointCharge, n_lines_per_charge: int = 20, length: int = 20, points_per_unit_vector: int=1, approach_tolerance: float=1E-1
 ) -> typing.List[mg_types.Float64_3DVectorArray]:
     _field_lines: typing.List[mg_types.Float64_3DVectorArray] = []
 
@@ -183,16 +185,6 @@ def field_lines_from_charges(
         # Create a field line from each starting point, these being spaced
         # evenly across the angle 2pi
         for line_start in get_line_start_points(electric_charge, n_lines_per_charge):
-            _field_lines.append(create_field_line(electric_charges, line_start, length))
+            _field_lines.append(create_field_line(electric_charges, line_start, length, points_per_unit_vector, approach_tolerance))
 
     return _field_lines
-
-
-if __name__ in "__main__":
-    _charges: typing.List[PointCharge] = [
-        PointCharge(numpy.array([-10, 0, 0]), 1),
-        PointCharge(numpy.array([5, 0, 0]), -1),
-        PointCharge(numpy.array([3, 10, 0]), -1),
-        PointCharge(numpy.array([0, 8, 0]), 1),
-    ]
-    electric_field_lines(_charges)
